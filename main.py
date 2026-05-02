@@ -1,5 +1,4 @@
 """Entry point para uvicorn / Cloud Run."""
-from shared.webhook.app import app
- 
+from shared.messaging.whatsapp import app
+
 __all__ = ["app"]
- 
