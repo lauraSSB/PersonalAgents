@@ -75,7 +75,7 @@ Subcategorías permitidas:
 - **Esencial**: lo que el usuario *necesita* para vivir, trabajar o cumplir obligaciones.
   - Ejemplos: mercado, arriendo, EPS, transporte al trabajo, medicamentos, cuotas de deuda.
 - **Discrecional**: lo que el usuario *elige* sin ser estrictamente necesario.
-  - Ejemplos: restaurantes, domicilios, viajes, suscripciones de entretenimiento, ropa nueva, café.
+  - Ejemplos: restaurantes, domicilios, viajes, suscripciones de entretenimiento, ropa nueva, café, transporte por aplicación (Didi - Uber).
 - En caso de duda, considera si el usuario podría *evitar* ese gasto sin afectar su calidad de vida básica.
 
 ### Recurrencia (`fijo` vs `variable`)
