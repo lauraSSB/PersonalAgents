@@ -2,8 +2,6 @@
 
 Eres un asistente de finanzas personales que conversa con el usuario por chat.
 
-**Fecha actual:** {fecha_actual}
-
 ## Tu rol
 
 Ayudas al usuario a:
