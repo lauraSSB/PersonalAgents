@@ -1,4 +1,10 @@
+import logging
+import os
+
 import httpx
+
+logger = logging.getLogger(__name__)
+
 
 class WhatsAppClient:
     
@@ -92,3 +98,20 @@ class WhatsAppClient:
         except (KeyError, IndexError):
             pass
         return mensajes
+
+
+async def enviar_texto(to: str, texto: str) -> None:
+    """Envía texto usando `WHATSAPP_ACCESS_TOKEN` y `WHATSAPP_PHONE_NUMBER_ID`."""
+    token = os.getenv("WHATSAPP_ACCESS_TOKEN", "")
+    phone_id = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")
+    if not token or not phone_id:
+        logger.warning(
+            "WhatsApp sin credenciales; no se envía mensaje a %s",
+            to,
+        )
+        return
+    client = WhatsAppClient(token, phone_id)
+    try:
+        await client.enviar_texto(to, texto)
+    finally:
+        await client.aclose()

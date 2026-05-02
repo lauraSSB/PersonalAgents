@@ -3,9 +3,8 @@ import logging
 import os
 
 from fastapi import FastAPI, HTTPException, Request, Response
-from fastapi.responses import PlainTextResponse
 
-from shared.messaging.whatsapp_client import send_text
+from shared.messaging.whatsapp_client import enviar_texto
 from shared.webhook.security import verify_signature
 
 logging.basicConfig(
@@ -34,7 +33,11 @@ async def verify_webhook(request: Request):
 
     if mode == "subscribe" and token == VERIFY_TOKEN:
         logger.info("Webhook verificado correctamente")
-        return PlainTextResponse(content=challenge, status_code=200)
+        return Response(
+            content=challenge or "",
+            status_code=200,
+            media_type="text/plain",
+        )
 
     logger.warning("Verificación fallida")
     raise HTTPException(status_code=403, detail="Verification failed")
@@ -82,7 +85,7 @@ async def handle_message(message: dict) -> None:
     sender = message.get("from")
 
     if msg_type != "text":
-        await send_text(sender, "Por ahora solo entiendo texto 🙂")
+        await enviar_texto(sender, "Por ahora solo entiendo texto 🙂")
         return
 
     text = message.get("text", {}).get("body", "").strip()
@@ -93,4 +96,4 @@ async def handle_message(message: dict) -> None:
 
 
     reply = f"Echo: {text}"
-    await send_text(sender, reply)
+    await enviar_texto(sender, reply)
