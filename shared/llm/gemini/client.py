@@ -33,7 +33,7 @@ class GeminiClient:
         self.max_output_tokens = max_output_tokens
         self.tools = tools
 
-        self.client = genai.Client(api_key=self.api_key)
+        self._client = genai.Client(api_key=self.api_key)
     
     def _build_config(self, response_schema: Type[T] | None = None) -> types.GenerateContentConfig:
         """Construye la configuración de generación.
@@ -106,3 +106,6 @@ class GeminiClient:
         )
 
         return response.parsed
+
+    async def aclose(self) -> None:
+        await self._client.aclose()

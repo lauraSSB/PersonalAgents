@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request, Response
 
-from agents import FinanceAgent
+from agents.finance import FinanceAgent
 from shared.messaging.base import IncomingMessage
 from shared.messaging.whatsapp.client import WhatsAppClient
 from shared.messaging.whatsapp.security import verify_signature
@@ -32,15 +32,24 @@ async def lifespan(app: FastAPI):
         phone_number_id=os.getenv("WHATSAPP_PHONE_NUMBER_ID", ""),
     )
 
-    app.state.finance_agent = FinanceAgent(
-        api_key=os.getenv("GEMINI_API_KEY", ""),
-    )
+    gemini_key = os.getenv("GEMINI_API_KEY", "").strip()
+    if gemini_key:
+        app.state.finance_agent = FinanceAgent(api_key=gemini_key)
+    else:
+        logger.warning(
+            "GEMINI_API_KEY no está definida: el agente de finanzas no responderá "
+            "hasta que configures la variable de entorno."
+        )
+        app.state.finance_agent = None
 
     logger.info("Aplicación lista")
 
     yield
 
     logger.info("Cerrando la aplicación")
+    finance_agent: FinanceAgent | None = app.state.finance_agent
+    if finance_agent is not None:
+        await finance_agent.llm.aclose()
     await app.state.whatsapp_client.aclose()
 
 
@@ -138,7 +147,7 @@ async def process_event(app: FastAPI, data: dict) -> None:
 async def handle_message(app: FastAPI, incoming: IncomingMessage) -> None:
     """Procesa un mensaje entrante: lo manda al agente y responde por WhatsApp."""
     whatsapp: WhatsAppClient = app.state.whatsapp_client
-    finance_agent: FinanceAgent = app.state.finance_agent
+    finance_agent: FinanceAgent | None = app.state.finance_agent
 
     sender = incoming.from_number
     texto = incoming.texto
@@ -151,6 +160,13 @@ async def handle_message(app: FastAPI, incoming: IncomingMessage) -> None:
         return
 
     if not texto.strip():
+        return
+
+    if finance_agent is None:
+        await whatsapp.enviar_texto(
+            sender,
+            "El asistente no está disponible: falta configurar GEMINI_API_KEY en el servidor.",
+        )
         return
 
     logger.info(f"Mensaje de {sender}: {texto}")

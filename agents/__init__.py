@@ -1,3 +1,1 @@
-from agents.finance import FinanceAgent
-
-__all__ = ["FinanceAgent"]
+"""Agent implementations. Import agents concretos desde su subpaquete (p. ej. agents.finance)."""
