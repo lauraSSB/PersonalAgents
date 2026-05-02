@@ -91,6 +91,6 @@ async def handle_message(message: dict) -> None:
 
     logger.info(f"Mensaje de {sender}: {text}")
 
-    # Echo simple
+
     reply = f"Echo: {text}"
     await send_text(sender, reply)
