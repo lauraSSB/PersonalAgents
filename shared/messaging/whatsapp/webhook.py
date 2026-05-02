@@ -5,11 +5,13 @@ import asyncio
 import json
 import logging
 import os
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request, Response
 
+from agents import FinanceAgent
 from shared.messaging.base import IncomingMessage
-from shared.messaging.whatsapp.client import enviar_texto
+from shared.messaging.whatsapp.client import WhatsAppClient
 from shared.messaging.whatsapp.security import verify_signature
 
 logging.basicConfig(
@@ -21,7 +23,28 @@ logger = logging.getLogger(__name__)
 
 VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN", "")
 
-app = FastAPI(title="WhatsApp Webhook")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("Iniciando la aplicación")
+
+    app.state.whatsapp_client = WhatsAppClient(
+        access_token=os.getenv("WHATSAPP_ACCESS_TOKEN", ""),
+        phone_number_id=os.getenv("WHATSAPP_PHONE_NUMBER_ID", ""),
+    )
+
+    app.state.finance_agent = FinanceAgent(
+        api_key=os.getenv("GEMINI_API_KEY", ""),
+    )
+
+    logger.info("Aplicación lista")
+
+    yield
+
+    logger.info("Cerrando la aplicación")
+    await app.state.whatsapp_client.aclose()
+
+
+app = FastAPI(title="WhatsApp Multi Agent", lifespan=lifespan)
 
 
 def parsear_webhook(data: dict) -> list[IncomingMessage]:
@@ -89,17 +112,18 @@ async def receive_webhook(request: Request):
     if not isinstance(data, dict):
         raise HTTPException(status_code=400, detail="Expected JSON object")
 
-    asyncio.create_task(process_event(data))
+    asyncio.create_task(process_event(request.app, data))
 
     return Response(status_code=200)
 
 
-async def process_event(data: dict) -> None:
+async def process_event(app: FastAPI, data: dict) -> None:
     if data.get("object") != "whatsapp_business_account":
         return
 
     for incoming in parsear_webhook(data):
-        await handle_message(incoming)
+        await handle_message(app, incoming)
+
 
     for entry in data.get("entry", []):
         for change in entry.get("changes", []):
@@ -111,20 +135,37 @@ async def process_event(data: dict) -> None:
                 )
 
 
-async def handle_message(incoming: IncomingMessage) -> None:
-    """ECHO: devuelve el mismo mensaje que recibe."""
+async def handle_message(app: FastAPI, incoming: IncomingMessage) -> None:
+    """Procesa un mensaje entrante: lo manda al agente y responde por WhatsApp."""
+    whatsapp: WhatsAppClient = app.state.whatsapp_client
+    finance_agent: FinanceAgent = app.state.finance_agent
+
+    sender = incoming.from_number
+    texto = incoming.texto
+
     if incoming.tipo != "text":
-        await enviar_texto(
-            incoming.from_number,
-            "Por ahora solo entiendo texto 🙂",
+        await whatsapp.enviar_texto(
+            sender,
+            "Por ahora solo entiendo mensajes de texto 🙂",
         )
         return
 
-    text = incoming.texto.strip()
-    if not text:
+    if not texto.strip():
         return
 
-    logger.info(f"Mensaje de {incoming.from_number}: {text}")
+    logger.info(f"Mensaje de {sender}: {texto}")
 
-    reply = f"Echo: {text}"
-    await enviar_texto(incoming.from_number, reply)
+    try:
+        await whatsapp.marcar_leido(incoming.message_id)
+    except Exception as e:
+        logger.warning(f"No se pudo marcar como leído: {e}")
+
+    try:
+        respuesta = await finance_agent.handle(texto, sender)
+        await whatsapp.enviar_texto(sender, respuesta)
+    except Exception as e:
+        logger.error(f"Error procesando mensaje: {e}", exc_info=True)
+        await whatsapp.enviar_texto(
+            sender,
+            "Tuve un problema procesando tu mensaje. Intenta de nuevo en un momento.",
+        )
